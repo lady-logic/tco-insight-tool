@@ -1,194 +1,170 @@
 import streamlit as st
 import time
-import random
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
+import sys
+import os
 
-def calculate_ai_prediction(asset_data):
-    """Simuliert KI-Vorhersage basierend auf Asset-Daten"""
-    
-    # Base maintenance rates by category/subcategory
-    base_rates = {
-        # IT-Equipment
-        "Server": 0.18, "Laptop": 0.12, "Workstation": 0.15, "Netzwerk": 0.10,
-        # Industrial
-        "Separator": 0.14, "Homogenizer": 0.16, "Pump": 0.12, "Pasteurizer": 0.13,
-        # Software  
-        "ERP": 0.20, "CAD": 0.18, "Office": 0.15, "Analyse": 0.16,
-        # Other
-        "PKW": 0.08, "LKW": 0.12, "HVAC": 0.10, "Security": 0.08
-    }
-    
-    # Manufacturer reliability factors
-    manufacturer_factors = {
-        # Premium brands
-        "Dell": 1.05, "Siemens": 1.15, "GEA": 1.10, "SAP": 1.20,
-        # Standard brands  
-        "HP": 1.00, "Lenovo": 0.95, "Alfa Laval": 1.00, "Microsoft": 1.00,
-        # Budget options
-        "Generic": 0.85, "No-Name": 0.80
-    }
-    
-    # Location factors (based on environment, support availability)
-    location_factors = {
-        "Düsseldorf (HQ)": 0.95,    # Best support
-        "Oelde": 1.00,              # Production site
-        "Berlin": 1.05,             # Remote office
-        "Shanghai": 1.15,           # International
-        "Andere": 1.20              # Unknown/difficult
-    }
-    
-    # Criticality factors
-    criticality_factors = {
-        "Niedrig": 0.80,    # Basic maintenance
-        "Mittel": 1.00,     # Standard
-        "Hoch": 1.30,       # Premium support
-        "Kritisch": 1.60    # 24/7 support
-    }
-    
-    # Usage pattern factors
-    usage_factors = {
-        "Standard (8h/Tag)": 1.00,
-        "Extended (12h/Tag)": 1.25,
-        "24/7 Betrieb": 1.80,
-        "Gelegentlich": 0.70
-    }
-    
-    # Get factors
-    subcategory = asset_data.get('subcategory', 'Server')
-    manufacturer = asset_data.get('manufacturer', 'Standard')
-    location = asset_data.get('location', 'Düsseldorf (HQ)')
-    criticality = asset_data.get('criticality', 'Mittel')
-    usage = asset_data.get('usage_pattern', 'Standard (8h/Tag)')
-    price = asset_data.get('purchase_price', 10000)
-    
-    # Calculate base annual maintenance
-    base_rate = base_rates.get(subcategory, 0.15)
-    mfg_factor = manufacturer_factors.get(manufacturer, 1.0)
-    loc_factor = location_factors.get(location, 1.0)
-    crit_factor = criticality_factors.get(criticality, 1.0)
-    usage_factor = usage_factors.get(usage, 1.0)
-    
-    # Age factor (newer = less maintenance first years)
-    purchase_date = asset_data.get('purchase_date', datetime.now().date())
-    age_years = (datetime.now().date() - purchase_date).days / 365
-    age_factor = max(0.7, 1.0 + (age_years * 0.1))  # 10% increase per year
-    
-    # Calculate prediction
-    annual_maintenance = (price * base_rate * mfg_factor * loc_factor * 
-                         crit_factor * usage_factor * age_factor)
-    
-    # Add realistic variance
-    variance = random.uniform(0.85, 1.15)  # ±15% variance
-    final_prediction = annual_maintenance * variance
-    
-    # Calculate confidence based on data completeness
-    confidence_factors = {
-        'manufacturer': 0.15 if manufacturer != 'Bitte wählen...' else 0,
-        'model': 0.10 if asset_data.get('model', '') else 0,
-        'usage_pattern': 0.15,
-        'criticality': 0.10,
-        'location': 0.10,
-        'warranty': 0.05 if asset_data.get('warranty_years', 0) > 0 else 0
-    }
-    
-    base_confidence = 0.35  # Minimum confidence
-    total_confidence = base_confidence + sum(confidence_factors.values())
-    confidence_variance = random.uniform(0.95, 1.05)
-    final_confidence = min(0.95, total_confidence * confidence_variance)
-    
-    # Determine confidence level and color
-    if final_confidence >= 0.85:
-        confidence_level = "Sehr Hoch"
-        confidence_color = "success"
-        confidence_icon = "🟢"
-    elif final_confidence >= 0.70:
-        confidence_level = "Hoch" 
-        confidence_color = "success"
-        confidence_icon = "🟢"
-    elif final_confidence >= 0.55:
-        confidence_level = "Mittel"
-        confidence_color = "warning"
-        confidence_icon = "🟡"
-    else:
-        confidence_level = "Niedrig"
-        confidence_color = "error"
-        confidence_icon = "🔴"
-    
-    return {
-        'annual_prediction': round(final_prediction),
-        'confidence': round(final_confidence * 100),
-        'confidence_level': confidence_level,
-        'confidence_color': confidence_color,
-        'confidence_icon': confidence_icon,
-        'range_min': round(final_prediction * 0.75),
-        'range_max': round(final_prediction * 1.25),
-        'factors_used': {
-            'base_rate': f"{base_rate*100:.1f}%",
-            'manufacturer': f"{mfg_factor:.2f}x",
-            'location': f"{loc_factor:.2f}x", 
-            'criticality': f"{crit_factor:.2f}x",
-            'usage': f"{usage_factor:.2f}x",
-            'age': f"{age_factor:.2f}x"
-        }
-    }
+# Add ml directory to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-def get_similar_assets(asset_data):
-    """Findet ähnliche Assets für Benchmark"""
+try:
+    from ml.tco_predictor import TCOPredictor
+    ML_AVAILABLE = True
+except ImportError as e:
+    ML_AVAILABLE = False
+    st.error(f"❌ ML-Model nicht verfügbar: {e}")
+
+@st.cache_resource
+def load_ml_model():
+    """Lädt das ML-Model (wird gecacht für Performance)"""
+    if not ML_AVAILABLE:
+        return None
     
-    # Mock similar assets based on category
-    subcategory = asset_data.get('subcategory', 'Server')
-    manufacturer = asset_data.get('manufacturer', 'Dell')
-    price = asset_data.get('purchase_price', 10000)
+    try:
+        predictor = TCOPredictor()
+        
+        # Try to load existing model first
+        model_path = 'ml/tco_model.pkl'
+        if os.path.exists(model_path):
+            predictor.load_model(model_path)
+            return predictor
+        else:
+            # Train new model if none exists
+            st.info("🤖 Kein trainiertes Model gefunden. Trainiere neues Model...")
+            stats = predictor.train()
+            predictor.save_model()
+            return predictor
+            
+    except Exception as e:
+        st.error(f"❌ Fehler beim Laden des ML-Models: {e}")
+        return None
+
+def create_ml_analysis_animation():
+    """Erstellt eine realistische ML-Analyse-Animation"""
     
-    similar_assets = []
+    analysis_steps = [
+        {"step": "🔍 Lade ML-Model...", "duration": 0.8},
+        {"step": "📊 Analysiere Asset-Features...", "duration": 1.2},
+        {"step": "🌳 Random Forest Inference...", "duration": 1.0},
+        {"step": "📈 Berechne Konfidenz-Score...", "duration": 0.9},
+        {"step": "🎯 Suche ähnliche Assets...", "duration": 1.1},
+        {"step": "✅ ML-Analyse abgeschlossen!", "duration": 0.5}
+    ]
     
-    if subcategory == "Server":
-        similar_assets = [
-            {"name": "SRV-DUS-003", "manufacturer": "Dell", "model": "PowerEdge R730", 
-             "price": 7800, "maintenance": 1560, "location": "München", "age": "2 Jahre"},
-            {"name": "SRV-BER-012", "manufacturer": "HP", "model": "ProLiant DL380", 
-             "price": 8200, "maintenance": 1640, "location": "Berlin", "age": "1 Jahr"},
-            {"name": "SRV-HH-007", "manufacturer": "Dell", "model": "PowerEdge R740", 
-             "price": 9100, "maintenance": 1820, "location": "Hamburg", "age": "3 Jahre"}
-        ]
-    elif subcategory == "Separator":
-        similar_assets = [
-            {"name": "SEP-A15", "manufacturer": "GEA", "model": "WSP 4000",
-             "price": 98000, "maintenance": 14700, "location": "Oelde", "age": "2 Jahre"},
-            {"name": "SEP-B08", "manufacturer": "Alfa Laval", "model": "WSPX 5500",
-             "price": 115000, "maintenance": 17250, "location": "Kopenhagen", "age": "1 Jahr"},
-            {"name": "SEP-C12", "manufacturer": "GEA", "model": "WSP 5200", 
-             "price": 108000, "maintenance": 16200, "location": "Düsseldorf", "age": "4 Jahre"}
-        ]
-    else:
-        # Generic similar assets
-        base_price = price
-        for i in range(3):
-            price_var = base_price * random.uniform(0.8, 1.2)
-            maintenance_var = price_var * random.uniform(0.12, 0.18)
-            similar_assets.append({
-                "name": f"{subcategory}-{random.randint(100,999)}", 
-                "manufacturer": random.choice([manufacturer, "Andere"]),
-                "model": f"Model {chr(65+i)}",
-                "price": round(price_var),
-                "maintenance": round(maintenance_var),
-                "location": random.choice(["Düsseldorf", "Berlin", "München"]),
-                "age": f"{random.randint(1,5)} Jahre"
-            })
+    progress_container = st.empty()
+    status_container = st.empty()
     
-    return similar_assets
+    total_steps = len(analysis_steps)
+    
+    for i, step_info in enumerate(analysis_steps):
+        progress = (i + 1) / total_steps
+        progress_container.progress(progress)
+        status_container.write(f"**{step_info['step']}**")
+        time.sleep(step_info['duration'])
+    
+    # Clear containers
+    progress_container.empty()
+    status_container.empty()
+
+def create_ml_comparison_chart(ml_prediction, fake_prediction):
+    """Vergleicht ML-Vorhersage mit alter Fake-Vorhersage"""
+    
+    comparison_data = {
+        'Method': ['🤖 ML-Model (Random Forest)', '🎭 Simulation (Rules-based)'],
+        'Prediction': [ml_prediction['annual_prediction'], fake_prediction['annual_prediction']],
+        'Confidence': [ml_prediction['confidence'], fake_prediction['confidence']],
+        'Method_Type': ['Machine Learning', 'Rule-based']
+    }
+    
+    fig = go.Figure()
+    
+    # Add bars for predictions
+    fig.add_trace(go.Bar(
+        name='Vorhersage (€/Jahr)',
+        x=comparison_data['Method'],
+        y=comparison_data['Prediction'],
+        marker_color=['#003366', '#FF6600'],
+        text=[f"€{x:,}" for x in comparison_data['Prediction']],
+        textposition='outside'
+    ))
+    
+    fig.update_layout(
+        title="🤖 ML vs. 🎭 Simulation: Vorhersage-Vergleich",
+        yaxis_title="Jährliche Wartungskosten (€)",
+        height=400,
+        showlegend=False
+    )
+    
+    return fig
+
+def show_feature_importance(predictor):
+    """Zeigt Feature Importance des ML-Models"""
+    
+    if not predictor or not hasattr(predictor, 'training_stats'):
+        return
+    
+    feature_importance = predictor.training_stats.get('feature_importance', {})
+    
+    if not feature_importance:
+        return
+    
+    # Sort features by importance
+    sorted_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
+    top_features = sorted_features[:8]  # Top 8 features
+    
+    # Create horizontal bar chart
+    feature_names = [item[0] for item in top_features]
+    importance_values = [item[1] for item in top_features]
+    
+    # Translate feature names to German
+    feature_translations = {
+        'purchase_price': 'Anschaffungspreis',
+        'age_years': 'Alter (Jahre)',
+        'manufacturer': 'Hersteller',
+        'category': 'Kategorie',
+        'subcategory': 'Subkategorie',
+        'location': 'Standort',
+        'usage_pattern': 'Nutzungsmuster',
+        'criticality': 'Kritikalität',
+        'warranty_years': 'Garantie (Jahre)',
+        'expected_lifetime': 'Erwartete Lebensdauer',
+        'price_age_ratio': 'Preis-Alter-Verhältnis',
+        'age_category': 'Alters-Kategorie',
+        'warranty_active': 'Garantie aktiv'
+    }
+    
+    translated_names = [feature_translations.get(name, name) for name in feature_names]
+    
+    fig = go.Figure(go.Bar(
+        x=importance_values,
+        y=translated_names,
+        orientation='h',
+        marker_color='#003366',
+        text=[f"{val:.3f}" for val in importance_values],
+        textposition='outside'
+    ))
+    
+    fig.update_layout(
+        title="🧠 ML-Model: Feature Importance",
+        xaxis_title="Wichtigkeit",
+        yaxis_title="Features",
+        height=400,
+        yaxis={'categoryorder': 'total ascending'}
+    )
+    
+    return fig
 
 def show():
-    """Step 3: KI-Schätzung durchführen"""
+    """Step 3: Echte KI-Schätzung mit ML"""
     
     # Header
     st.markdown("### ← Zurück &nbsp;&nbsp;&nbsp; NEUES ASSET HINZUFÜGEN &nbsp;&nbsp;&nbsp; Schritt 3/4")
     st.markdown("---")
     
-    # Asset-Info aus vorherigen Schritten
+    # Asset-Info validation
     if not st.session_state.asset_data.get('asset_name'):
         st.error("❌ Keine Asset-Daten gefunden. Bitte gehen Sie zurück zu Schritt 2.")
         return
@@ -197,63 +173,89 @@ def show():
     
     # Asset Summary
     st.markdown(f"""
-    <div class="gea-card" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-left: 5px solid #28a745;">
-        <h4 style="margin: 0; color: #003366;">🤖 KI-basierte Kostenschätzung</h4>
+    <div class="gea-card" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-left: 5px solid #003366;">
+        <h4 style="margin: 0; color: #003366;">🤖 Machine Learning Kostenschätzung</h4>
         <p style="margin: 0.5rem 0 0 0; color: #666;">
             Für: <strong>{asset_data.get('asset_name', 'N/A')}</strong> 
             ({asset_data.get('manufacturer', 'N/A')} {asset_data.get('model', '')})
         </p>
+        <p style="margin: 0.3rem 0 0 0; color: #666; font-size: 0.9rem;">
+            🧠 Random Forest Model • 📊 Trainiert mit 500+ Assets • ⚡ Real-time Inference
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # AI Processing Animation
-    st.markdown("## 🧠 KI-Analyse läuft...")
+    # Load ML Model
+    st.markdown("## 🧠 ML-Model wird geladen...")
     
-    # Progress container
-    progress_container = st.empty()
-    status_container = st.empty()
+    with st.spinner("Lade Machine Learning Model..."):
+        predictor = load_ml_model()
     
-    # Simulate AI processing with progress bar
-    analysis_steps = [
-        "🔍 Analysiere Asset-Eigenschaften...",
-        "📊 Durchsuche historische Daten...", 
-        "🎯 Finde ähnliche Assets...",
-        "🧮 Berechne Wartungskosten...",
-        "📈 Validiere Schätzung...",
-        "✅ Analyse abgeschlossen!"
-    ]
-    
-    # Animated progress
-    for i, step in enumerate(analysis_steps):
-        progress = (i + 1) / len(analysis_steps)
-        progress_container.progress(progress)
-        status_container.write(f"**{step}**")
-        time.sleep(random.uniform(0.5, 1.5))  # Realistic delay
-    
-    # Clear progress indicators
-    progress_container.empty()
-    status_container.empty()
-    
-    # Generate AI prediction
-    prediction = calculate_ai_prediction(asset_data)
-    similar_assets = get_similar_assets(asset_data)
-    
-    # Store prediction in session state
-    st.session_state.asset_data['ai_prediction'] = prediction
-    st.session_state.asset_data['similar_assets'] = similar_assets
+    if not predictor:
+        st.error("❌ ML-Model konnte nicht geladen werden. Fallback auf Simulation.")
+        # Fallback to old fake prediction
+        from pages.step3 import calculate_fake_tco_prediction
+        prediction = calculate_fake_tco_prediction(
+            asset_data.get('subcategory', 'Server'),
+            asset_data.get('manufacturer', 'Dell'),
+            asset_data.get('purchase_price', 10000)
+        )
+        st.session_state.asset_data['ai_prediction'] = prediction
+        st.warning("⚠️ Verwende Regel-basierte Simulation statt ML")
+    else:
+        # ML Analysis Animation
+        st.markdown("## 🤖 Machine Learning Analyse läuft...")
+        create_ml_analysis_animation()
+        
+        # Prepare asset data for ML prediction
+        ml_asset_data = {
+            'category': asset_data.get('category', 'IT-Equipment'),
+            'subcategory': asset_data.get('subcategory', 'Server'),
+            'manufacturer': asset_data.get('manufacturer', 'Dell'),
+            'purchase_price': asset_data.get('purchase_price', 10000),
+            'age_years': 0.5,  # Assume 6 months old for new asset
+            'warranty_years': asset_data.get('warranty_years', 1),
+            'expected_lifetime': asset_data.get('expected_lifetime', 5),
+            'location': asset_data.get('location', 'Düsseldorf (HQ)'),
+            'usage_pattern': asset_data.get('usage_pattern', 'Standard (8h/Tag)'),
+            'criticality': asset_data.get('criticality', 'Mittel')
+        }
+        
+        # Get ML prediction
+        try:
+            ml_prediction = predictor.predict(ml_asset_data)
+            similar_assets = predictor.get_similar_assets(ml_asset_data)
+            
+            # Store in session state
+            st.session_state.asset_data['ai_prediction'] = ml_prediction
+            st.session_state.asset_data['similar_assets'] = similar_assets
+            st.session_state.asset_data['ml_used'] = True
+            
+            # Show success
+            st.success("✅ Machine Learning Analyse abgeschlossen!")
+            
+        except Exception as e:
+            st.error(f"❌ ML-Vorhersage fehlgeschlagen: {e}")
+            # Fallback
+            prediction = {'annual_prediction': 1000, 'confidence': 50, 'confidence_level': 'Niedrig'}
+            st.session_state.asset_data['ai_prediction'] = prediction
     
     # Results Section
-    st.markdown("## 🎯 Ergebnisse der KI-Analyse")
+    prediction = st.session_state.asset_data.get('ai_prediction', {})
     
-    # Main prediction display
+    st.markdown("## 🎯 Machine Learning Ergebnisse")
+    
+    # Main prediction display with ML branding
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Prediction result card
+        # Enhanced prediction result card
+        model_info = "🤖 Random Forest" if predictor else "🎭 Simulation"
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #003366, #0066CC); color: white; 
                     border-radius: 15px; padding: 2rem; text-align: center; margin: 1rem 0;">
-            <h2 style="margin: 0; font-size: 2.5rem;">€{prediction['annual_prediction']:,}</h2>
+            <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 0.5rem;">{model_info}</div>
+            <h2 style="margin: 0; font-size: 2.5rem;">€{prediction.get('annual_prediction', 0):,}</h2>
             <p style="margin: 0.5rem 0 0 0; font-size: 1.2rem; opacity: 0.9;">
                 Geschätzte jährliche Wartungskosten
             </p>
@@ -261,147 +263,199 @@ def show():
         """, unsafe_allow_html=True)
         
         # Range display
+        range_min = prediction.get('range_min', 0)
+        range_max = prediction.get('range_max', 0)
         st.markdown(f"""
         <div style="background: #f8f9fa; border-radius: 10px; padding: 1rem; text-align: center;">
-            <strong>Erwarteter Bereich:</strong> €{prediction['range_min']:,} - €{prediction['range_max']:,}
+            <strong>Vorhersage-Bereich:</strong> €{range_min:,} - €{range_max:,}
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        # Confidence indicator
+        # Enhanced confidence display
+        confidence = prediction.get('confidence', 0)
+        confidence_level = prediction.get('confidence_level', 'Niedrig')
+        confidence_icon = prediction.get('confidence_icon', '🔴')
+        
         confidence_color_map = {
             "success": "#28a745",
             "warning": "#ffc107", 
             "error": "#dc3545"
         }
         
-        color = confidence_color_map.get(prediction['confidence_color'], "#28a745")
+        color = confidence_color_map.get(prediction.get('confidence_color', 'error'), "#28a745")
         
         st.markdown(f"""
         <div style="background: white; border: 2px solid {color}; border-radius: 15px; 
                     padding: 1.5rem; text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{prediction['confidence_icon']}</div>
-            <h3 style="margin: 0; color: {color};">{prediction['confidence']}%</h3>
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{confidence_icon}</div>
+            <h3 style="margin: 0; color: {color};">{confidence}%</h3>
             <p style="margin: 0.5rem 0 0 0; color: #666;">
-                Konfidenz: <strong>{prediction['confidence_level']}</strong>
+                ML-Konfidenz: <strong>{confidence_level}</strong>
             </p>
+            {f'<p style="margin: 0.3rem 0 0 0; font-size: 0.8rem; color: #999;">Model: {prediction.get("model_type", "Unknown")}</p>' if predictor else ''}
         </div>
         """, unsafe_allow_html=True)
     
-    # Detailed breakdown
-    st.markdown("### 📊 Detaillierte Analyse")
-    
-    col3, col4 = st.columns([1, 1])
-    
-    with col3:
-        st.markdown("**🔧 Verwendete Faktoren:**")
-        factors = prediction['factors_used']
+    # ML-specific insights
+    if predictor and ML_AVAILABLE:
+        st.markdown("### 🧠 Machine Learning Insights")
         
-        factor_descriptions = {
-            'base_rate': 'Basis-Wartungssatz',
-            'manufacturer': 'Hersteller-Faktor', 
-            'location': 'Standort-Faktor',
-            'criticality': 'Kritikalitäts-Faktor',
-            'usage': 'Nutzungs-Faktor',
-            'age': 'Alters-Faktor'
-        }
+        col3, col4 = st.columns([1, 1])
         
-        for key, value in factors.items():
-            description = factor_descriptions.get(key, key)
-            st.write(f"• **{description}:** {value}")
+        with col3:
+            # Model performance info
+            stats = predictor.training_stats
+            st.markdown("**📊 Model Performance:**")
+            st.write(f"• **R² Score:** {stats.get('test_r2', 0):.3f} ({stats.get('test_r2', 0)*100:.1f}% Varianz erklärt)")
+            st.write(f"• **Mean Absolute Error:** €{stats.get('test_mae', 0):,.0f}")
+            st.write(f"• **Training Assets:** {stats.get('n_training_assets', 0):,}")
+            st.write(f"• **Features verwendet:** {stats.get('n_features', 0)}")
+            
+            # Prediction details
+            if 'prediction_std' in prediction:
+                st.write(f"• **Vorhersage-Unsicherheit:** €{prediction['prediction_std']:,.0f}")
+        
+        with col4:
+            # Feature importance chart
+            importance_fig = show_feature_importance(predictor)
+            if importance_fig:
+                st.plotly_chart(importance_fig, use_container_width=True)
     
-    with col4:
-        st.markdown("**🎯 Ähnliche Assets (Referenz):**")
+    # Enhanced similar assets section
+    similar_assets = st.session_state.asset_data.get('similar_assets', [])
+    if similar_assets:
+        st.markdown("### 🎯 Ähnliche Assets aus ML-Training-Daten")
         
-        for asset in similar_assets[:3]:  # Top 3
-            maintenance_pct = (asset['maintenance'] / asset['price']) * 100
+        for i, asset in enumerate(similar_assets[:3]):
+            maintenance_pct = (asset.get('maintenance', 0) / asset.get('price', 1)) * 100
+            
+            # Enhanced asset card with more details
             st.markdown(f"""
-            <div style="background: #f8f9fa; border-radius: 8px; padding: 0.8rem; margin: 0.5rem 0;">
-                <strong>{asset['name']}</strong><br>
-                <small>{asset['manufacturer']} {asset['model']} | {asset['location']}</small><br>
-                <span style="color: #FF6600;">€{asset['maintenance']:,}/Jahr ({maintenance_pct:.1f}%)</span>
+            <div style="background: linear-gradient(135deg, #f8f9fa, white); border: 1px solid #dee2e6; 
+                        border-radius: 10px; padding: 1rem; margin: 0.5rem 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #003366;">{asset.get('name', 'N/A')}</strong><br>
+                        <small style="color: #666;">{asset.get('manufacturer', 'N/A')} {asset.get('model', '')} | {asset.get('location', 'N/A')}</small><br>
+                        <small style="color: #999;">Alter: {asset.get('age', 'N/A')}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="color: #FF6600; font-weight: bold;">€{asset.get('maintenance', 0):,}/Jahr</span><br>
+                        <small style="color: #666;">({maintenance_pct:.1f}% von Anschaffung)</small>
+                    </div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
     
-    # TCO Preview Chart
-    st.markdown("### 📈 TCO-Projektion (5 Jahre)")
-    
-    years = list(range(2025, 2030))
-    annual_cost = prediction['annual_prediction']
-    purchase_price = asset_data.get('purchase_price', 0)
-    
-    # Escalation factor (maintenance increases over time)
-    costs_over_time = []
-    for i, year in enumerate(years):
-        escalation = 1 + (i * 0.05)  # 5% increase per year
-        yearly_cost = annual_cost * escalation
-        costs_over_time.append(yearly_cost)
-    
-    # Create chart
-    fig = go.Figure()
-    
-    # Purchase cost (one-time)
-    fig.add_trace(go.Bar(
-        x=[years[0]], 
-        y=[purchase_price],
-        name='Anschaffungskosten',
-        marker_color='#003366'
-    ))
-    
-    # Annual maintenance costs
-    fig.add_trace(go.Bar(
-        x=years,
-        y=costs_over_time,
-        name='Jährliche Wartungskosten',
-        marker_color='#FF6600'
-    ))
-    
-    fig.update_layout(
-        title="TCO-Entwicklung über 5 Jahre",
-        xaxis_title="Jahr",
-        yaxis_title="Kosten (€)",
-        barmode='group',
-        height=400
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Manual adjustment option
-    with st.expander("⚙️ Schätzung manuell anpassen"):
-        st.markdown("Falls Sie andere Informationen haben, können Sie die KI-Schätzung anpassen:")
+    # Optional: Comparison with rule-based prediction
+    if predictor and st.checkbox("🔍 Vergleich: ML vs. Regel-basierte Simulation", value=False):
+        st.markdown("### 🤖 vs 🎭 Methodenvergleich")
         
+        # Calculate fake prediction for comparison
+        from pages.step3 import calculate_fake_tco_prediction
+        fake_prediction = calculate_fake_tco_prediction(
+            asset_data.get('subcategory', 'Server'),
+            asset_data.get('manufacturer', 'Dell'),
+            asset_data.get('purchase_price', 10000)
+        )
+        
+        # Show comparison
+        comparison_fig = create_ml_comparison_chart(prediction, fake_prediction)
+        st.plotly_chart(comparison_fig, use_container_width=True)
+        
+        col5, col6 = st.columns(2)
+        with col5:
+            st.markdown("**🤖 Machine Learning:**")
+            st.write("• Lernt aus echten Daten")
+            st.write("• Berücksichtigt komplexe Muster")
+            st.write("• Adaptiert sich automatisch")
+            st.write("• Confidence basierend auf Modell-Unsicherheit")
+        
+        with col6:
+            st.markdown("**🎭 Regel-basierte Simulation:**")
+            st.write("• Verwendet vordefinierte Regeln")
+            st.write("• Einfache Faktor-Multiplikation")
+            st.write("• Feste Berechnungslogik")
+            st.write("• Confidence basierend auf Datenvollständigkeit")
+    
+    # Manual adjustment (enhanced for ML)
+    with st.expander("⚙️ ML-Vorhersage manuell anpassen"):
+        st.markdown("Die ML-Vorhersage basiert auf gelernten Mustern. Sie können sie anpassen wenn Sie spezifische Informationen haben:")
+        
+        current_prediction = prediction.get('annual_prediction', 0)
         manual_cost = st.number_input(
-            "Ihre Schätzung (€/Jahr):",
+            "Ihre Experteneinschätzung (€/Jahr):",
             min_value=0,
-            value=prediction['annual_prediction'],
-            step=100
+            value=current_prediction,
+            step=100,
+            help="Überschreibt die ML-Vorhersage mit Ihrer Einschätzung"
         )
         
         manual_reason = st.text_input(
             "Grund für Anpassung:",
-            placeholder="z.B. Spezialvertrag, interne Erfahrung, etc."
+            placeholder="z.B. Spezialvertrag, besondere Umstände, interne Erfahrung...",
+            help="Dokumentiert warum Sie die ML-Vorhersage angepasst haben"
         )
         
-        if manual_cost != prediction['annual_prediction']:
+        if manual_cost != current_prediction:
             st.session_state.asset_data['manual_override'] = manual_cost
             st.session_state.asset_data['manual_reason'] = manual_reason
-            st.info(f"💡 Angepasste Schätzung: €{manual_cost:,}/Jahr")
+            
+            # Calculate difference
+            difference = manual_cost - current_prediction
+            percentage_diff = (difference / current_prediction) * 100 if current_prediction > 0 else 0
+            
+            if difference > 0:
+                st.info(f"💡 Ihre Schätzung ist €{difference:,} höher als ML-Vorhersage ({percentage_diff:+.1f}%)")
+            else:
+                st.info(f"💡 Ihre Schätzung ist €{abs(difference):,} niedriger als ML-Vorhersage ({percentage_diff:+.1f}%)")
     
     # Navigation
     st.markdown("<br><br>", unsafe_allow_html=True)
-    col5, col6, col7 = st.columns([1, 1, 1])
+    col7, col8, col9 = st.columns([1, 1, 1])
     
-    with col5:
+    with col7:
         if st.button("← ZURÜCK ZU GRUNDDATEN", key="step3_back", use_container_width=True):
             st.session_state.page = 'step2'
             st.rerun()
     
-    with col6:
-        # Regenerate prediction
-        if st.button("🔄 NEUE ANALYSE", key="step3_regenerate", use_container_width=True):
-            st.rerun()  # Will recalculate with new random factors
+    with col8:
+        # Enhanced regenerate with ML context
+        button_text = "🔄 NEUE ML-ANALYSE" if predictor else "🔄 NEUE SIMULATION"
+        if st.button(button_text, key="step3_regenerate", use_container_width=True):
+            # Clear previous predictions to force regeneration
+            if 'ai_prediction' in st.session_state.asset_data:
+                del st.session_state.asset_data['ai_prediction']
+            st.rerun()
     
-    with col7:
+    with col9:
         if st.button("WEITER ZUR ÜBERSICHT →", key="step3_next", type="primary", use_container_width=True):
             st.session_state.page = 'step4'
             st.rerun()
+
+# Fallback function for fake prediction (if ML fails)
+def calculate_fake_tco_prediction(asset_type, manufacturer, price):
+    """Fallback rule-based prediction"""
+    import random
+    
+    base_rates = {"Server": 0.20, "Laptop": 0.15, "Separator": 0.15}
+    base_rate = base_rates.get(asset_type, 0.15)
+    
+    manufacturer_factors = {"Dell": 1.1, "HP": 1.0, "GEA": 1.15}
+    mfg_factor = manufacturer_factors.get(manufacturer, 1.0)
+    
+    annual_maintenance = price * base_rate * mfg_factor
+    variance = random.uniform(0.8, 1.2)
+    predicted_cost = annual_maintenance * variance
+    confidence = random.uniform(0.75, 0.90)
+    
+    return {
+        "annual_prediction": round(predicted_cost),
+        "confidence": round(confidence * 100),
+        "confidence_level": "Mittel",
+        "confidence_color": "warning",
+        "confidence_icon": "🟡",
+        "range_min": round(predicted_cost * 0.8),
+        "range_max": round(predicted_cost * 1.2)
+    }

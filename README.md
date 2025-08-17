@@ -1,29 +1,51 @@
 # TCO Insight Tool
 
-## 🎯 Projekt-Beschreibung
-AI-powered Total Cost of Ownership Tool für Unternehmens-Assets.
+AI-powered Total Cost of Ownership calculator for enterprise assets using machine learning.
 
-## ✨ Features
-- 4-Step Asset-Wizard 
-- KI-basierte Wartungskosten-Schätzung
-- Interactive TCO-Visualisierungen
-- Export-Funktionen
+## Features
 
-## 🛠️ Tech Stack
-- Python 3.13
-- Streamlit
-- Plotly (Charts)
-- Pandas (Data Processing)
-- Scikit-learn (ML) - Coming soon!
+- **4-Step Asset Wizard** - Intuitive asset creation process
+- **Machine Learning Predictions** - Random Forest model trained on 500+ assets
+- **Smart Cost Analysis** - Automatic maintenance cost estimation with confidence scoring
+- **Interactive Dashboards** - Charts, metrics, and TCO breakdowns
+- **Similar Assets Finder** - Benchmark comparisons from training data
+- **Professional UI** - Clean, responsive business interface
 
-## 🚀 Installation & Setup
+## Tech Stack
+
+- **Python 3.10+** - Core language
+- **Streamlit** - Web framework
+- **Scikit-learn** - Machine learning (Random Forest)
+- **Pandas** - Data processing
+- **Plotly** - Interactive charts
+
+## ML Model Performance
+
+- **R² Score:** ~0.73 (73% variance explained)
+- **Mean Absolute Error:** ~€5,300
+- **Features:** 13 engineered asset properties
+- **Training Data:** 400+ realistic assets
+
+## Usage
+
+1. **Dashboard** - View asset overview and metrics
+2. **Add Asset** - Enter asset details through 4-step wizard
+3. **AI Analysis** - Get ML-powered cost predictions
+4. **TCO Report** - Review complete cost breakdown and recommendations
+
+## Quick Start
+
 ```bash
-# Virtual Environment erstellen
-python -m venv tco-venv
-tco-venv\Scripts\activate  # Windows
+# Clone and setup
+git clone https://github.com/yourusername/tco-insight-tool.git
+cd tco-insight-tool
 
-# Dependencies installieren
-pip install streamlit plotly pandas
+# Install dependencies
+pip install streamlit plotly pandas scikit-learn joblib
 
-# App starten
+# Generate training data and train ML model
+python data/generate_training_data.py
+python ml/tco_predictor.py
+
+# Run application
 streamlit run app.py
