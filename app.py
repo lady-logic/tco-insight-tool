@@ -142,7 +142,11 @@ try:
     elif st.session_state.page == 'step2':
         step2.show()
     elif st.session_state.page == 'step3':
-        step3.show()
+        if st.checkbox("🚀 Erweiterte TCO-Analyse verwenden", value=True):
+            import pages.step3_erweitert as step3_enhanced
+            step3_enhanced.show()
+        else:
+            step3.show()
     elif st.session_state.page == 'step4':
         step4.show()
     else:
