@@ -2,6 +2,13 @@ import streamlit as st
 import pandas as pd
 import re
 
+# Import GEA Styling
+try:
+    from styles.gea_style import apply_gea_styling, create_gea_logo_header, GEA_COLORS
+    STYLING_AVAILABLE = True
+except ImportError:
+    STYLING_AVAILABLE = False
+
 # Standorte mit Energy Agent + feste Preise
 STANDORTE = {
     'Düsseldorf (HQ)': {
@@ -47,6 +54,112 @@ STANDORTE = {
         'info': '🟡 Feste Preise'
     }
 }
+
+def apply_custom_gea_header_styling():
+    """Wendet GEA Styling mit hellem Header für blaues Logo an"""
+    st.markdown("""
+    <style>
+    /* GEA Header mit hellem Hintergrund für blaues Logo */
+    .gea-header-custom {
+        background: linear-gradient(135deg, #F5F7FA, #E2E8F0);
+        color: #003875;
+        padding: 2rem 2.5rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 8px 32px rgba(0, 82, 163, 0.15);
+        position: relative;
+        overflow: hidden;
+        border: 2px solid #E2E8F0;
+    }
+    
+    .gea-header-custom::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(0, 82, 163, 0.05)"/><circle cx="60" cy="60" r="1.5" fill="rgba(0, 82, 163, 0.05)"/><circle cx="80" cy="30" r="1" fill="rgba(0, 82, 163, 0.05)"/></svg>');
+        opacity: 0.4;
+    }
+    
+    .gea-header-content {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .gea-logo {
+        width: 120px;
+        height: auto;
+        margin-right: 2rem;
+        /* Kein Filter - zeige blaues Logo */
+    }
+    
+    .gea-header-text h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #003875;
+        line-height: 1.1;
+    }
+    
+    .gea-header-text p {
+        margin: 0.5rem 0 0 0;
+        font-size: 1.1rem;
+        color: #455A64;
+        font-weight: 400;
+    }
+    
+    /* Responsive Design für Header */
+    @media (max-width: 768px) {
+        .gea-header-custom {
+            flex-direction: column;
+            text-align: center;
+            padding: 1.5rem;
+        }
+        
+        .gea-logo {
+            margin-right: 0;
+            margin-bottom: 1rem;
+            width: 100px;
+        }
+        
+        .gea-header-text h1 {
+            font-size: 2rem;
+        }
+        
+        .gea-header-text p {
+            font-size: 1rem;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+def create_custom_gea_header():
+    """Erstellt den GEA Header mit Logo auf hellem Hintergrund"""
+    
+    header_html = """
+    <div class="gea-header-custom">
+        <div class="gea-header-content">
+            <svg viewBox="0 0 85 27" fill="#0303B8" xmlns="http://www.w3.org/2000/svg" class="gea-logo">
+                <path d="M71.761 0.731346H65.3369L61.0542 9.29883L65.8193 9.29983L68.5661 3.8121L79.8574 26.4338H84.6225L71.761 0.731346Z"></path>
+                <path d="M69.62 11.4436L13.9448 11.4416L11.8034 15.7253H20.3689V22.1509H12.777C8.08278 22.1509 4.26368 18.3246 4.26368 13.5865C4.26368 8.84841 8.08278 5.01489 12.777 5.01489H22.5022V0.729073L12.777 0.729074C5.73173 0.729074 0 6.49694 0 13.5865C0 20.6761 5.73173 26.4347 12.777 26.4347H24.6516V15.7253H31.0756V26.4347H48.2064L50.3478 22.1509H35.3583V15.7253H57.8157L52.4891 26.4347H57.2519L62.606 15.7253H71.7613L69.62 11.4436Z"></path>
+                <path d="M35.3584 5.01396L50.3476 5.01504V0.731292L31.0732 0.728142L31.0736 9.29977H35.3584V5.01396Z"></path>
+            </svg>
+            <div class="gea-header-text">
+                <h1>TCO Analyse Tool</h1>
+                <p>Intelligente Kostenschätzung für GEA Zentrifugen</p>
+            </div>
+        </div>
+    </div>
+    """
+    
+    st.markdown(header_html, unsafe_allow_html=True)
 
 def get_energy_agent():
     """Lädt Energy Agent falls verfügbar"""
@@ -157,7 +270,7 @@ def calculate_simple_tco(row, standort='Düsseldorf (HQ)', betriebsstunden_woche
     # SERVICE-KOSTEN (jährlich verteilt)
     annual_service_cost = (service_cost_per_service * service_zyklen_gesamt) / nutzungsdauer_jahre
     
-    # DISKONTIERUNG - Jahr für Jahr (Option A)
+    # DISKONTIERUNG - Jahr für Jahr
     discount_rate = 0.05  # 5% Diskontsatz
     
     # Anschaffung (Jahr 0, nicht diskontiert)
@@ -212,9 +325,15 @@ def calculate_simple_tco(row, standort='Düsseldorf (HQ)', betriebsstunden_woche
 def show():
     """Reduziertes Dashboard mit Maschinen-Vergleich"""
     
-    # Header
-    st.markdown("# GEA TCO Analyse Tool")
-    st.markdown("---")
+    # GEA Styling anwenden (falls verfügbar)
+    if STYLING_AVAILABLE:
+        apply_gea_styling()
+    
+    # Custom Header Styling
+    apply_custom_gea_header_styling()
+    
+    # GEA Header mit Logo auf hellem Hintergrund
+    create_custom_gea_header()
     
     # Excel Upload
     st.markdown("## 📁 Excel-Datei")
@@ -369,7 +488,8 @@ def show():
                             'DMR': f"{tco_result['dmr']} mm",
                             # Rohdaten für Sortierung
                             '_tco_raw': tco_result['total_tco'],
-                            '_purchase_raw': tco_result['purchase_price']
+                            '_purchase_raw': tco_result['purchase_price'],
+                            '_machine_row': machine_row  # Für What-if Analyse
                         })
                 
                 if comparison_data:
@@ -411,36 +531,15 @@ def show():
                         st.write(f"• Jahresverbrauch: {sample_tco['annual_water_liters']:,.0f} L")
                         st.write(f"• Service-Zyklen: {sample_tco['service_zyklen_gesamt']}× (alle 8000h oder 24 Monate)")
                     
-                    # Diskontierungs-Info hinzufügen
-                    st.markdown("### 📈 Diskontierung (5% p.a.)")
-                    col5, col6 = st.columns(2)
-                    
-                    with col5:
-                        st.write("**💰 TCO-Vergleich:**")
-                        st.write(f"• **Diskontierte TCO:** €{sample_tco['total_tco']:,.0f}")
-                        st.write(f"• Undiskontierte TCO: €{sample_tco['undiscounted_tco']:,.0f}")
-                        savings = sample_tco['undiscounted_tco'] - sample_tco['total_tco']
-                        savings_percent = (savings / sample_tco['undiscounted_tco']) * 100
-                        st.write(f"• **Diskont-Effekt:** -€{savings:,.0f} (-{savings_percent:.1f}%)")
-                    
-                    with col6:
-                        st.write("**🧮 Diskontierung erklärt:**")
-                        st.write("• Jahr 1: Kosten / (1.05)¹")
-                        st.write("• Jahr 2: Kosten / (1.05)²")
-                        st.write("• Jahr 3: Kosten / (1.05)³")
-                        st.write("• ... Jahr für Jahr")
-                        st.write(f"• Anschaffung: Nicht diskontiert (Jahr 0)")
-                        st.info("💡 Geld heute ist mehr wert als Geld morgen")
-                    
-                    # What-if Analyse Sektion
+                    # What-if Analyse Sektion - Beste Maschine verwenden
                     st.markdown("### 🔮 What-if Analyse")
                     st.markdown("**Wie ändert sich die TCO wenn...?**")
                     
-                    # Basis-TCO für Vergleich (erste/beste Maschine)
-                    basis_maschine = filtered_df2.iloc[0]  # Erste Maschine als Referenz
-                    basis_tco = calculate_simple_tco(basis_maschine, standort, betriebsstunden_woche, nutzungsdauer_jahre, energy_agent)
+                    # Beste Maschine als Referenz verwenden
+                    beste_maschine_data = best_machine['_machine_row']  # Beste Maschine aus Ranking
+                    beste_tco = calculate_simple_tco(beste_maschine_data, standort, betriebsstunden_woche, nutzungsdauer_jahre, energy_agent)
                     
-                    st.info(f"🎯 **Referenz:** {basis_maschine.get('SEP_SQLLangtyp', 'N/A')} - Basis-TCO: €{basis_tco['total_tco']:,.0f}")
+                    st.info(f"🎯 **Referenz:** {best_machine['Modell']} - Beste TCO: €{beste_tco['total_tco']:,.0f}")
                     
                     # What-if Buttons in Spalten
                     what_if_col1, what_if_col2, what_if_col3 = st.columns(3)
@@ -450,22 +549,22 @@ def show():
                         
                         if st.button("📈 Strom +20%", key="strom_plus", help="Strompreis um 20% erhöhen"):
                             # Simuliere höheren Strompreis
-                            new_electricity_price = basis_tco['electricity_price'] * 1.2
-                            what_if_energy_cost = basis_tco['annual_energy_kwh'] * new_electricity_price * nutzungsdauer_jahre
-                            what_if_tco = (basis_tco['total_tco'] - basis_tco['total_energy_cost'] + what_if_energy_cost)
-                            differenz = what_if_tco - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
+                            new_electricity_price = beste_tco['electricity_price'] * 1.2
+                            what_if_energy_cost = beste_tco['annual_energy_kwh'] * new_electricity_price * nutzungsdauer_jahre
+                            what_if_tco = (beste_tco['total_tco'] - beste_tco['total_energy_cost'] + what_if_energy_cost)
+                            differenz = what_if_tco - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
                             
                             if differenz > 0:
                                 st.error(f"📈 **+€{differenz:,.0f}** (+{prozent:.1f}%)")
                                 st.write(f"Neue TCO: €{what_if_tco:,.0f}")
                             
                         if st.button("📉 Strom -15%", key="strom_minus", help="Strompreis um 15% senken"):
-                            new_electricity_price = basis_tco['electricity_price'] * 0.85
-                            what_if_energy_cost = basis_tco['annual_energy_kwh'] * new_electricity_price * nutzungsdauer_jahre
-                            what_if_tco = (basis_tco['total_tco'] - basis_tco['total_energy_cost'] + what_if_energy_cost)
-                            differenz = what_if_tco - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
+                            new_electricity_price = beste_tco['electricity_price'] * 0.85
+                            what_if_energy_cost = beste_tco['annual_energy_kwh'] * new_electricity_price * nutzungsdauer_jahre
+                            what_if_tco = (beste_tco['total_tco'] - beste_tco['total_energy_cost'] + what_if_energy_cost)
+                            differenz = what_if_tco - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
                             
                             if differenz < 0:
                                 st.success(f"📉 **{differenz:,.0f}€** ({prozent:.1f}%)")
@@ -476,9 +575,9 @@ def show():
                         
                         if st.button("⬆️ +50% Stunden", key="hours_plus", help="50% mehr Betriebsstunden"):
                             new_hours = betriebsstunden_woche * 1.5
-                            what_if_tco_result = calculate_simple_tco(basis_maschine, standort, new_hours, nutzungsdauer_jahre, energy_agent)
-                            differenz = what_if_tco_result['total_tco'] - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
+                            what_if_tco_result = calculate_simple_tco(beste_maschine_data, standort, new_hours, nutzungsdauer_jahre, energy_agent)
+                            differenz = what_if_tco_result['total_tco'] - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
                             
                             st.error(f"⬆️ **+€{differenz:,.0f}** (+{prozent:.1f}%)")
                             st.write(f"Von {betriebsstunden_woche}h → {new_hours:.0f}h/Woche")
@@ -486,9 +585,9 @@ def show():
                         
                         if st.button("⬇️ -25% Stunden", key="hours_minus", help="25% weniger Betriebsstunden"):
                             new_hours = betriebsstunden_woche * 0.75
-                            what_if_tco_result = calculate_simple_tco(basis_maschine, standort, new_hours, nutzungsdauer_jahre, energy_agent)
-                            differenz = what_if_tco_result['total_tco'] - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
+                            what_if_tco_result = calculate_simple_tco(beste_maschine_data, standort, new_hours, nutzungsdauer_jahre, energy_agent)
+                            differenz = what_if_tco_result['total_tco'] - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
                             
                             st.success(f"⬇️ **{differenz:,.0f}€** ({prozent:.1f}%)")
                             st.write(f"Von {betriebsstunden_woche}h → {new_hours:.0f}h/Woche")
@@ -499,10 +598,10 @@ def show():
                         
                         if st.button("📈 +5 Jahre", key="years_plus", help="5 Jahre längere Nutzung"):
                             new_years = nutzungsdauer_jahre + 5
-                            what_if_tco_result = calculate_simple_tco(basis_maschine, standort, betriebsstunden_woche, new_years, energy_agent)
-                            differenz = what_if_tco_result['total_tco'] - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
-                            tco_per_year_old = basis_tco['total_tco'] / nutzungsdauer_jahre
+                            what_if_tco_result = calculate_simple_tco(beste_maschine_data, standort, betriebsstunden_woche, new_years, energy_agent)
+                            differenz = what_if_tco_result['total_tco'] - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
+                            tco_per_year_old = beste_tco['total_tco'] / nutzungsdauer_jahre
                             tco_per_year_new = what_if_tco_result['total_tco'] / new_years
                             
                             st.error(f"📈 **+€{differenz:,.0f}** (+{prozent:.1f}%)")
@@ -511,10 +610,10 @@ def show():
                         
                         if st.button("📉 -5 Jahre", key="years_minus", help="5 Jahre kürzere Nutzung"):
                             new_years = max(1, nutzungsdauer_jahre - 5)
-                            what_if_tco_result = calculate_simple_tco(basis_maschine, standort, betriebsstunden_woche, new_years, energy_agent)
-                            differenz = what_if_tco_result['total_tco'] - basis_tco['total_tco']
-                            prozent = (differenz / basis_tco['total_tco']) * 100
-                            tco_per_year_old = basis_tco['total_tco'] / nutzungsdauer_jahre
+                            what_if_tco_result = calculate_simple_tco(beste_maschine_data, standort, betriebsstunden_woche, new_years, energy_agent)
+                            differenz = what_if_tco_result['total_tco'] - beste_tco['total_tco']
+                            prozent = (differenz / beste_tco['total_tco']) * 100
+                            tco_per_year_old = beste_tco['total_tco'] / nutzungsdauer_jahre
                             tco_per_year_new = what_if_tco_result['total_tco'] / new_years
                             
                             st.success(f"📉 **{differenz:,.0f}€** ({prozent:.1f}%)")
@@ -533,21 +632,21 @@ def show():
                     with col_insight1:
                         # Größter Kostentreiber
                         cost_factors = {
-                            'Anschaffung': basis_tco['purchase_price'],
-                            'Energie': basis_tco['total_energy_cost'],
-                            'Service': basis_tco['total_service_cost'],
-                            'Wasser': basis_tco['total_water_cost']
+                            'Anschaffung': beste_tco['purchase_price'],
+                            'Energie': beste_tco['total_energy_cost'],
+                            'Service': beste_tco['total_service_cost'],
+                            'Wasser': beste_tco['total_water_cost']
                         }
                         biggest_factor = max(cost_factors, key=cost_factors.get)
                         biggest_value = cost_factors[biggest_factor]
-                        biggest_percent = (biggest_value / basis_tco['total_tco']) * 100
+                        biggest_percent = (biggest_value / beste_tco['total_tco']) * 100
                         
                         st.write(f"🎯 **Größter Kostenfaktor:** {biggest_factor}")
                         st.write(f"   €{biggest_value:,.0f} ({biggest_percent:.1f}% der TCO)")
                     
                     with col_insight2:
                         # Optimierungspotential
-                        energy_ratio = (basis_tco['total_energy_cost'] / basis_tco['total_tco']) * 100
+                        energy_ratio = (beste_tco['total_energy_cost'] / beste_tco['total_tco']) * 100
                         if energy_ratio > 20:
                             st.write("⚡ **Energieoptimierung lohnt sich!**")
                             st.write(f"   {energy_ratio:.1f}% der TCO sind Energiekosten")
