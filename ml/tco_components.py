@@ -1,6 +1,7 @@
 """
 Erweiterbares TCO-Komponenten-System für präzise Kostenberechnung
 Berücksichtigt Energie, Wasser, Personal und weitere Faktoren
+Mit Energy Agent Integration für Echtzeit-Strompreise
 """
 
 from dataclasses import dataclass, asdict
@@ -24,6 +25,7 @@ class ExtendedTCOCalculator:
     """
     Erweiterbarer TCO-Rechner mit modularen Komponenten
     Speziell optimiert für industrielle Zentrifugen
+    Mit Energy Agent Integration für Echtzeit-Strompreise
     """
     
     def __init__(self):
@@ -173,9 +175,127 @@ class ExtendedTCOCalculator:
             region_dependent=False,
             equipment_dependent=True
         )
+        
+    # Neue Methode für ml/tco_components.py ExtendedTCOCalculator Klasse:
+
+def calculate_extended_tco_with_energy_agent(self, asset_data: Dict, lifetime_years: int = 15, energy_agent=None) -> Dict[str, Any]:
+    """
+    Berechnet erweiterte TCO mit Energy Agent Integration
+    
+    Args:
+        asset_data: Dictionary mit Asset-Eigenschaften
+        lifetime_years: Geplante Nutzungsdauer
+        energy_agent: EnergyAgent Instanz für Echtzeit-Daten
+        
+    Returns:
+        Dictionary mit detaillierter TCO-Aufschlüsselung
+    """
+    
+    print(f"🔋 Berechne erweiterte TCO mit Energy Agent für {asset_data.get('asset_name', 'Asset')}...")
+    
+    components = {}
+    
+    # Standard TCO-Komponenten
+    components['maintenance'] = self.add_base_maintenance_component(asset_data)
+    components['water'] = self.add_water_component(asset_data)
+    components['personnel'] = self.add_personnel_component(asset_data)
+    components['spare_parts'] = self.add_spare_parts_component(asset_data)
+    components['cleaning'] = self.add_cleaning_component(asset_data)
+    components['monitoring'] = self.add_monitoring_component(asset_data)
+    components['compliance'] = self.add_compliance_component(asset_data)
+    components['insurance'] = self.add_insurance_component(asset_data)
+    
+    # ENHANCED: Energie-Komponente mit Energy Agent
+    if energy_agent:
+        components['energy'] = self.add_realtime_energy_component(asset_data, energy_agent)
+        print("✅ Echtzeit-Energiepreise integriert")
+    else:
+        components['energy'] = self.add_energy_component(asset_data)
+        print("⚠️ Standard-Energiepreise verwendet")
+    
+    # Rest der TCO-Berechnung wie gewohnt
+    total_annual_operating = sum(comp.annual_cost for comp in components.values())
+    escalated_costs = self._calculate_escalated_costs(components, lifetime_years)
+    
+    # Einmalige Kosten
+    purchase_price = asset_data.get('purchase_price', 100000)
+    installation_cost = purchase_price * 0.05
+    training_cost = purchase_price * 0.02
+    disposal_cost = purchase_price * 0.03
+    residual_value = purchase_price * 0.15
+    
+    # TCO-Berechnung
+    total_acquisition = purchase_price + installation_cost + training_cost
+    total_operating = sum(escalated_costs.values())
+    total_disposal = disposal_cost - residual_value
+    
+    total_tco = total_acquisition + total_operating + total_disposal
+    
+    # Enhanced Confidence mit Energy Agent
+    energy_confidence_bonus = 0.1 if energy_agent else 0.0  # 10% Bonus für Echtzeit-Daten
+    total_confidence = sum(comp.confidence * comp.annual_cost for comp in components.values())
+    avg_confidence = (total_confidence / total_annual_operating + energy_confidence_bonus) if total_annual_operating > 0 else 0.8
+    avg_confidence = min(avg_confidence, 1.0)  # Cap at 100%
+    
+    # Energy Optimization Insights (falls Energy Agent verfügbar)
+    energy_insights = {}
+    if energy_agent:
+        energy_insights = self.get_energy_optimization_insights(asset_data)
+        energy_insights['energy_agent_used'] = True
+    else:
+        energy_insights['energy_agent_used'] = False
+    
+    result = {
+        'asset_info': {
+            'name': asset_data.get('asset_name', 'N/A'),
+            'category': f"{asset_data.get('category', 'N/A')} - {asset_data.get('subcategory', 'N/A')}",
+            'manufacturer': asset_data.get('manufacturer', 'N/A'),
+            'location': asset_data.get('location', 'N/A')
+        },
+        'components': {name: asdict(comp) for name, comp in components.items()},
+        'annual_breakdown': {name: comp.annual_cost for name, comp in components.items()},
+        'escalated_costs': escalated_costs,
+        'cost_summary': {
+            'acquisition_costs': total_acquisition,
+            'operating_costs': total_operating,
+            'disposal_costs': total_disposal,
+            'total_tco': total_tco,
+            'annual_average': total_tco / lifetime_years,
+            'tco_multiple': total_tco / purchase_price if purchase_price > 0 else 0
+        },
+        'financial_metrics': {
+            'purchase_price': purchase_price,
+            'installation_cost': installation_cost,
+            'training_cost': training_cost,
+            'disposal_cost': disposal_cost,
+            'residual_value': residual_value,
+            'total_annual_operating': total_annual_operating,
+            'lifetime_years': lifetime_years
+        },
+        'confidence_metrics': {
+            'overall_confidence': avg_confidence,
+            'confidence_level': self._get_confidence_level(avg_confidence),
+            'component_confidence': {name: comp.confidence for name, comp in components.items()},
+            'energy_agent_bonus': energy_confidence_bonus
+        },
+        'energy_insights': energy_insights,  # NEU: Energy-spezifische Insights
+        'analysis_metadata': {
+            'calculation_date': pd.Timestamp.now().isoformat(),
+            'model_version': '2.1_energy_enhanced',
+            'regional_factors_applied': asset_data.get('location', 'N/A'),
+            'components_count': len(components),
+            'energy_agent_used': energy_agent is not None
+        }
+    }
+    
+    print(f"✅ Enhanced TCO-Berechnung abgeschlossen: €{total_tco:,.0f} (Konfidenz: {avg_confidence:.1%})")
+    if energy_agent:
+        print(f"⚡ Energie-Insights: {len(energy_insights.get('recommendations', []))} Optimierungen gefunden")
+    
+    return result
     
     def add_energy_component(self, asset_data: Dict) -> TCOComponent:
-        """Energiekosten basierend auf Leistungsaufnahme und Betriebszeit"""
+        """Standard-Energiekosten basierend auf Leistungsaufnahme und Betriebszeit"""
         
         total_power_kw = asset_data.get('total_power_consumption', 
                                        asset_data.get('motor_power_kw', 20))
@@ -217,6 +337,92 @@ class ExtendedTCOCalculator:
                 'efficiency_factor': efficiency_factor,
                 'electricity_price': electricity_price,
                 'annual_kwh': annual_kwh
+            },
+            region_dependent=True,
+            equipment_dependent=True
+        )
+    
+    def add_realtime_energy_component(self, asset_data: Dict, energy_agent=None) -> TCOComponent:
+        """Erweiterte Energiekosten mit Echtzeit-Preisen und Optimierung"""
+        
+        total_power_kw = asset_data.get('total_power_consumption', 
+                                       asset_data.get('motor_power_kw', 20))
+        usage_pattern = asset_data.get('usage_pattern', 'Standard (8h/Tag)')
+        location = asset_data.get('location', 'Düsseldorf (HQ)')
+        efficiency_class = asset_data.get('efficiency_class', 'Standard')
+        
+        # Betriebsstunden pro Jahr
+        annual_hours = self.industry_standards['annual_operating_hours'][usage_pattern]
+        
+        # Echtzeit-Strompreis holen (falls Agent verfügbar)
+        if energy_agent:
+            try:
+                current_price, price_source, is_realtime = energy_agent.get_current_electricity_price(location)
+                electricity_price = current_price
+                
+                # Optimierungsempfehlungen holen
+                forecast = energy_agent.get_daily_price_forecast(location, days=1)
+                optimization_recommendations = energy_agent.get_optimization_recommendations(asset_data, forecast)
+                
+                # Store für spätere Verwendung
+                asset_data['_energy_optimization'] = optimization_recommendations
+                asset_data['_energy_price_realtime'] = is_realtime
+                asset_data['_energy_price_source'] = price_source
+                
+            except Exception as e:
+                print(f"⚠️ Energie-Agent Fehler: {e}")
+                # Fallback auf regionale Standardpreise
+                electricity_price = self.regional_factors['electricity_prices'][location]
+                is_realtime = False
+                price_source = 'Regional Standard (Agent Error)'
+        else:
+            # Fallback ohne Agent
+            electricity_price = self.regional_factors['electricity_prices'][location]
+            is_realtime = False
+            price_source = 'Regional Standard'
+        
+        # Effizienz-Faktor
+        efficiency_factor = 0.95 if efficiency_class == 'Premium' else 1.0
+        
+        # Load-Faktor (realistischer Durchschnittsverbrauch)
+        load_factor = {
+            'Gelegentlich': 0.6,
+            'Standard (8h/Tag)': 0.75,
+            'Extended (12h/Tag)': 0.85,
+            '24/7 Betrieb': 0.80
+        }.get(usage_pattern, 0.75)
+        
+        # Seasonal Variation (Zentrifugen in Lebensmittel haben Saisons)
+        category = asset_data.get('category', 'Industrial')
+        seasonal_factor = 1.2 if category in ['Citrus', 'Wine'] else 1.0
+        
+        # Berechnung
+        annual_kwh = total_power_kw * annual_hours * load_factor * efficiency_factor * seasonal_factor
+        annual_cost = annual_kwh * electricity_price
+        
+        # Store annual kWh for later use
+        asset_data['_annual_kwh'] = annual_kwh
+        asset_data['_last_energy_cost'] = annual_cost
+        
+        # Confidence höher bei Echtzeit-Preisen
+        confidence = 0.95 if is_realtime else 0.85
+        
+        return TCOComponent(
+            name='Energiekosten (Enhanced)',
+            annual_cost=annual_cost,
+            category='variable',
+            confidence=confidence,
+            calculation_method='power * hours * load_factor * efficiency * seasonal * realtime_price',
+            factors={
+                'total_power_kw': total_power_kw,
+                'annual_hours': annual_hours,
+                'load_factor': load_factor,
+                'efficiency_factor': efficiency_factor,
+                'seasonal_factor': seasonal_factor,
+                'electricity_price': electricity_price,
+                'electricity_price_realtime': is_realtime,
+                'annual_kwh': annual_kwh,
+                'price_source': price_source
             },
             region_dependent=True,
             equipment_dependent=True
@@ -659,6 +865,160 @@ class ExtendedTCOCalculator:
         
         return result
     
+    def calculate_extended_tco_with_energy_agent(self, asset_data: Dict, lifetime_years: int = 15, energy_agent=None) -> Dict[str, Any]:
+        """
+        Berechnet erweiterte TCO mit Energy Agent Integration
+        
+        Args:
+            asset_data: Dictionary mit Asset-Eigenschaften
+            lifetime_years: Geplante Nutzungsdauer
+            energy_agent: EnergyAgent Instanz für Echtzeit-Daten
+            
+        Returns:
+            Dictionary mit detaillierter TCO-Aufschlüsselung
+        """
+        
+        print(f"🔋 Berechne erweiterte TCO mit Energy Agent für {asset_data.get('asset_name', 'Asset')}...")
+        
+        components = {}
+        
+        # Standard TCO-Komponenten
+        components['maintenance'] = self.add_base_maintenance_component(asset_data)
+        components['water'] = self.add_water_component(asset_data)
+        components['personnel'] = self.add_personnel_component(asset_data)
+        components['spare_parts'] = self.add_spare_parts_component(asset_data)
+        components['cleaning'] = self.add_cleaning_component(asset_data)
+        components['monitoring'] = self.add_monitoring_component(asset_data)
+        components['compliance'] = self.add_compliance_component(asset_data)
+        components['insurance'] = self.add_insurance_component(asset_data)
+        
+        # ENHANCED: Energie-Komponente mit Energy Agent
+        if energy_agent:
+            components['energy'] = self.add_realtime_energy_component(asset_data, energy_agent)
+            print("✅ Echtzeit-Energiepreise integriert")
+        else:
+            components['energy'] = self.add_energy_component(asset_data)
+            print("⚠️ Standard-Energiepreise verwendet")
+        
+        # Rest der TCO-Berechnung wie gewohnt
+        total_annual_operating = sum(comp.annual_cost for comp in components.values())
+        escalated_costs = self._calculate_escalated_costs(components, lifetime_years)
+        
+        # Einmalige Kosten
+        purchase_price = asset_data.get('purchase_price', 100000)
+        installation_cost = purchase_price * 0.05
+        training_cost = purchase_price * 0.02
+        disposal_cost = purchase_price * 0.03
+        residual_value = purchase_price * 0.15
+        
+        # TCO-Berechnung
+        total_acquisition = purchase_price + installation_cost + training_cost
+        total_operating = sum(escalated_costs.values())
+        total_disposal = disposal_cost - residual_value
+        
+        total_tco = total_acquisition + total_operating + total_disposal
+        
+        # Enhanced Confidence mit Energy Agent
+        energy_confidence_bonus = 0.1 if energy_agent else 0.0  # 10% Bonus für Echtzeit-Daten
+        total_confidence = sum(comp.confidence * comp.annual_cost for comp in components.values())
+        avg_confidence = (total_confidence / total_annual_operating + energy_confidence_bonus) if total_annual_operating > 0 else 0.8
+        avg_confidence = min(avg_confidence, 1.0)  # Cap at 100%
+        
+        # Energy Optimization Insights (falls Energy Agent verfügbar)
+        energy_insights = {}
+        if energy_agent:
+            energy_insights = self.get_energy_optimization_insights(asset_data)
+            energy_insights['energy_agent_used'] = True
+        else:
+            energy_insights['energy_agent_used'] = False
+        
+        result = {
+            'asset_info': {
+                'name': asset_data.get('asset_name', 'N/A'),
+                'category': f"{asset_data.get('category', 'N/A')} - {asset_data.get('subcategory', 'N/A')}",
+                'manufacturer': asset_data.get('manufacturer', 'N/A'),
+                'location': asset_data.get('location', 'N/A')
+            },
+            'components': {name: asdict(comp) for name, comp in components.items()},
+            'annual_breakdown': {name: comp.annual_cost for name, comp in components.items()},
+            'escalated_costs': escalated_costs,
+            'cost_summary': {
+                'acquisition_costs': total_acquisition,
+                'operating_costs': total_operating,
+                'disposal_costs': total_disposal,
+                'total_tco': total_tco,
+                'annual_average': total_tco / lifetime_years,
+                'tco_multiple': total_tco / purchase_price if purchase_price > 0 else 0
+            },
+            'financial_metrics': {
+                'purchase_price': purchase_price,
+                'installation_cost': installation_cost,
+                'training_cost': training_cost,
+                'disposal_cost': disposal_cost,
+                'residual_value': residual_value,
+                'total_annual_operating': total_annual_operating,
+                'lifetime_years': lifetime_years
+            },
+            'confidence_metrics': {
+                'overall_confidence': avg_confidence,
+                'confidence_level': self._get_confidence_level(avg_confidence),
+                'component_confidence': {name: comp.confidence for name, comp in components.items()},
+                'energy_agent_bonus': energy_confidence_bonus
+            },
+            'energy_insights': energy_insights,  # NEU: Energy-spezifische Insights
+            'analysis_metadata': {
+                'calculation_date': pd.Timestamp.now().isoformat(),
+                'model_version': '2.1_energy_enhanced',
+                'regional_factors_applied': asset_data.get('location', 'N/A'),
+                'components_count': len(components),
+                'energy_agent_used': energy_agent is not None
+            }
+        }
+        
+        print(f"✅ Enhanced TCO-Berechnung abgeschlossen: €{total_tco:,.0f} (Konfidenz: {avg_confidence:.1%})")
+        if energy_agent:
+            print(f"⚡ Energie-Insights: {len(energy_insights.get('recommendations', []))} Optimierungen gefunden")
+        
+        return result
+    
+    def get_energy_optimization_insights(self, asset_data: Dict) -> Dict[str, Any]:
+        """Gibt detaillierte Energie-Optimierungs-Insights zurück"""
+        
+        optimization_recommendations = asset_data.get('_energy_optimization', [])
+        energy_cost = asset_data.get('_last_energy_cost', 0)
+        
+        insights = {
+            'current_energy_cost': energy_cost,
+            'optimization_count': len(optimization_recommendations),
+            'total_savings_potential': sum(rec.get('potential_savings', 0) for rec in optimization_recommendations if isinstance(rec.get('potential_savings'), (int, float))),
+            'recommendations': optimization_recommendations,
+            'energy_efficiency_rating': 'Standard',  # Default
+            'smart_grid_ready': False
+        }
+        
+        # Energy Efficiency Rating basierend auf kWh/€ Purchase Price
+        annual_kwh = asset_data.get('_annual_kwh', 0)
+        purchase_price = asset_data.get('purchase_price', 1)
+        
+        if annual_kwh > 0 and purchase_price > 0:
+            kwh_per_euro = annual_kwh / purchase_price
+            
+            if kwh_per_euro < 0.5:
+                insights['energy_efficiency_rating'] = 'Excellent'
+            elif kwh_per_euro < 1.0:
+                insights['energy_efficiency_rating'] = 'Good'
+            elif kwh_per_euro < 2.0:
+                insights['energy_efficiency_rating'] = 'Average'
+            else:
+                insights['energy_efficiency_rating'] = 'Poor'
+        
+        # Smart Grid Readiness
+        power_kw = asset_data.get('total_power_consumption', 0)
+        if power_kw > 50:  # Größere Anlagen für Demand Response geeignet
+            insights['smart_grid_ready'] = True
+        
+        return insights
+    
     def _calculate_escalated_costs(self, components: Dict[str, TCOComponent], lifetime_years: int) -> Dict[str, float]:
         """Berechnet eskalierte Kosten über Lebensdauer"""
         
@@ -939,6 +1299,7 @@ class ExtendedTCOCalculator:
         # Standort-Optimierung (bei hohen regionalen Kosten)
         location = asset_info.get('location', '')
         if 'Düsseldorf' in location or 'Kopenhagen' in location:  # Hochkosten-Standorte
+            personnel_cost = annual_breakdown.get('personnel', 0)
             recommendations.append({
                 'priority': 'Strategisch',
                 'category': 'Standort-Strategie',
@@ -1105,5 +1466,35 @@ if __name__ == "__main__":
         print(f"{i}. {rec['title']} ({rec['priority']})")
         print(f"   💰 Einsparung: €{rec['potential_savings']:,.0f}/Jahr")
         print(f"   ⏱️ {rec['payback_period']}")
+    
+    # Test mit Energy Agent (falls verfügbar)
+    try:
+        from energy.energy_agent import EnergyAgent
+        print(f"\n🔋 Teste Energy Agent Integration...")
+        
+        energy_agent = EnergyAgent()
+        enhanced_result = calculator.calculate_extended_tco_with_energy_agent(
+            test_asset, 
+            lifetime_years=15, 
+            energy_agent=energy_agent
+        )
+        
+        print(f"✅ Enhanced TCO mit Energy Agent: €{enhanced_result['cost_summary']['total_tco']:,.0f}")
+        print(f"⚡ Energy Insights: {len(enhanced_result['energy_insights'].get('recommendations', []))} Optimierungen")
+        
+        # Vergleiche Standard vs Enhanced
+        standard_energy = result['annual_breakdown'].get('energy', 0)
+        enhanced_energy = enhanced_result['annual_breakdown'].get('energy', 0)
+        
+        if abs(standard_energy - enhanced_energy) > 100:  # Significant difference
+            print(f"📊 Energiekosten-Unterschied: €{enhanced_energy - standard_energy:,.0f}/Jahr")
+            print(f"   Standard: €{standard_energy:,.0f} | Enhanced: €{enhanced_energy:,.0f}")
+        else:
+            print(f"📊 Energiekosten identisch: €{enhanced_energy:,.0f}/Jahr (Agent verfügbar)")
+        
+    except ImportError:
+        print(f"\n⚠️ Energy Agent nicht verfügbar - Standard TCO-Berechnung verwendet")
+    except Exception as e:
+        print(f"\n❌ Energy Agent Test fehlgeschlagen: {e}")
     
     print(f"\n🎯 Erweiterte TCO-Analyse erfolgreich!")

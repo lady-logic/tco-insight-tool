@@ -215,6 +215,160 @@ def create_component_confidence_chart(tco_result):
     
     return fig
 
+@st.cache_resource
+def load_energy_agent():
+    """Lädt den Energy Agent für Echtzeit-Strompreise"""
+    try:
+        from energy.energy_agent import EnergyAgent
+        agent = EnergyAgent()
+        return agent
+    except ImportError as e:
+        st.warning(f"⚠️ Energy Agent nicht verfügbar: {e}")
+        return None
+
+def create_energy_dashboard(energy_agent, location):
+    """Erstellt Live-Energie-Dashboard"""
+    
+    if not energy_agent:
+        return None
+    
+    try:
+        dashboard_data = energy_agent.get_price_dashboard_data(location)
+        
+        # Current Price Display
+        current_price = dashboard_data['current_price']
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #FF6600, #FF8800); color: white; 
+                    border-radius: 15px; padding: 1.5rem; text-align: center; margin: 1rem 0;">
+            <div style="font-size: 0.8rem; opacity: 0.8;">⚡ Aktueller Strompreis</div>
+            <h3 style="margin: 0; font-size: 1.8rem;">€{current_price['value']:.4f}/kWh</h3>
+            <p style="margin: 0.3rem 0 0 0; font-size: 0.9rem; opacity: 0.9;">
+                {current_price['source']} • {'🟢 Live' if current_price['is_realtime'] else '🔴 Static'}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Price Statistics
+        stats = dashboard_data['statistics']
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Min (Heute)", f"€{stats['min']:.1f}/MWh", 
+                     f"{((stats['current']/stats['min'])-1)*100:+.1f}%")
+        
+        with col2:
+            st.metric("Durchschnitt", f"€{stats['avg']:.1f}/MWh",
+                     f"{((stats['current']/stats['avg'])-1)*100:+.1f}%")
+        
+        with col3:
+            st.metric("Max (Heute)", f"€{stats['max']:.1f}/MWh",
+                     f"{((stats['current']/stats['max'])-1)*100:+.1f}%")
+        
+        return dashboard_data
+        
+    except Exception as e:
+        st.error(f"❌ Energie-Dashboard Fehler: {e}")
+        return None
+
+def create_energy_forecast_chart(energy_agent, location):
+    """Erstellt Strompreis-Vorhersage Chart"""
+    
+    if not energy_agent:
+        return None
+    
+    try:
+        forecast = energy_agent.get_daily_price_forecast(location, days=1)
+        
+        if not forecast:
+            return None
+        
+        # Prepare data for chart
+        hours = []
+        prices = []
+        colors = []
+        
+        for price_point in forecast[:24]:  # Next 24 hours
+            hours.append(price_point.timestamp.strftime('%H:00'))
+            prices.append(price_point.price_eur_mwh)
+            
+            # Color coding: Green=cheap, Yellow=medium, Red=expensive
+            if price_point.price_eur_mwh < min(p.price_eur_mwh for p in forecast) * 1.1:
+                colors.append('#28a745')  # Green - cheap
+            elif price_point.price_eur_mwh > max(p.price_eur_mwh for p in forecast) * 0.9:
+                colors.append('#dc3545')  # Red - expensive
+            else:
+                colors.append('#ffc107')  # Yellow - medium
+        
+        # Create chart
+        fig = go.Figure(go.Bar(
+            x=hours,
+            y=prices,
+            marker_color=colors,
+            text=[f"€{p:.1f}" for p in prices],
+            textposition='outside'
+        ))
+        
+        fig.update_layout(
+            title="⚡ Strompreis-Vorhersage (Nächste 24h)",
+            xaxis_title="Uhrzeit",
+            yaxis_title="Preis (€/MWh)",
+            height=400,
+            showlegend=False
+        )
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"❌ Forecast Chart Fehler: {e}")
+        return None
+
+def show_energy_optimization_section(energy_agent, asset_data):
+    """Zeigt detaillierte Energie-Optimierungen"""
+    
+    if not energy_agent:
+        st.info("⚠️ Energy Agent nicht verfügbar - Standard Energiepreise werden verwendet")
+        return
+    
+    st.markdown("### ⚡ Live Energie-Analyse")
+    
+    location = asset_data.get('location', 'Düsseldorf (HQ)')
+    
+    # Live Dashboard
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        dashboard_data = create_energy_dashboard(energy_agent, location)
+    
+    with col2:
+        # Energy Optimization Recommendations
+        if dashboard_data:
+            forecast = energy_agent.get_daily_price_forecast(location, days=1)
+            recommendations = energy_agent.get_optimization_recommendations(asset_data, forecast)
+            
+            if recommendations:
+                st.markdown("**🎯 Optimierungs-Empfehlungen:**")
+                
+                for i, rec in enumerate(recommendations[:3], 1):
+                    priority_color = {
+                        'Hoch': '#dc3545',
+                        'Mittel': '#ffc107', 
+                        'Niedrig': '#28a745',
+                        'Strategisch': '#6c757d'
+                    }.get(rec['priority'], '#6c757d')
+                    
+                    st.markdown(f"""
+                    <div style="border-left: 4px solid {priority_color}; padding: 0.5rem; margin: 0.5rem 0; background: #f8f9fa;">
+                        <strong>{i}. {rec['title']}</strong> ({rec['priority']})<br>
+                        <small>{rec['description']}</small><br>
+                        💰 <strong>{rec['savings_potential']}</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+    # Price Forecast Chart
+    forecast_fig = create_energy_forecast_chart(energy_agent, location)
+    if forecast_fig:
+        st.plotly_chart(forecast_fig, use_container_width=True)
+
 def show():
     """Enhanced Step 3: Erweiterte KI-Schätzung mit TCO-Komponenten"""
     
@@ -248,6 +402,7 @@ def show():
     
     with st.spinner("Lade Enhanced Machine Learning Models..."):
         predictor, tco_calculator = load_enhanced_ml_model()
+        energy_agent = load_energy_agent()
     
     if not predictor or not tco_calculator:
         st.error("❌ Erweiterte ML-Systeme nicht verfügbar. Fallback auf Standard-Modus.")
@@ -288,10 +443,19 @@ def show():
         ml_prediction = predictor.predict(enhanced_asset_data)
         
         # 2. Erweiterte TCO-Berechnung
-        extended_tco_result = tco_calculator.calculate_extended_tco(
-            enhanced_asset_data, 
-            lifetime_years=enhanced_asset_data['expected_lifetime']
-        )
+        if energy_agent:
+            # Ersetze normale Energie-Komponente durch Enhanced Version
+            enhanced_tco_result = tco_calculator.calculate_extended_tco_with_energy_agent(
+                enhanced_asset_data, 
+                lifetime_years=enhanced_asset_data['expected_lifetime'],
+                energy_agent=energy_agent  # Übergebe Agent
+            )
+        else:
+            # Fallback ohne Energy Agent
+            extended_tco_result = tco_calculator.calculate_extended_tco(
+                enhanced_asset_data, 
+                lifetime_years=enhanced_asset_data['expected_lifetime']
+            )
         
         # 3. Store in session state
         st.session_state.asset_data['ml_prediction'] = ml_prediction
@@ -307,6 +471,9 @@ def show():
     
     # === RESULTS SECTION ===
     st.markdown("## 🎯 Erweiterte TCO-Ergebnisse")
+    
+    if energy_agent:
+        show_energy_optimization_section(energy_agent, enhanced_asset_data)
     
     # Main Results Display
     col1, col2, col3 = st.columns([1, 1, 1])

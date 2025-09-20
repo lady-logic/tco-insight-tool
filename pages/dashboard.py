@@ -51,6 +51,19 @@ def show():
     
     st.markdown("<br>", unsafe_allow_html=True)
     
+    col_energy1, col_energy2 = st.columns([1, 2])
+    
+    with col_energy1:
+        energy_available = show_energy_widget()
+    
+    with col_energy2:
+        if energy_available:
+            st.info("🔋 **Energy Agent aktiv** - Echtzeit-Strompreise verfügbar für optimierte TCO-Berechnungen")
+        else:
+            st.warning("⚠️ **Energy Agent offline** - Standard-Energiepreise werden verwendet")
+            
+    show_energy_optimization_summary()
+    
     # Hauptaktion: Neues Asset hinzufügen
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -82,3 +95,115 @@ def show():
         use_container_width=True,
         hide_index=True
     )
+    
+
+def show_energy_widget():
+    """Zeigt Energy-Widget im Dashboard"""
+    
+    try:
+        from energy.energy_agent import EnergyAgent
+        energy_agent = EnergyAgent()
+        
+        # Aktueller Strompreis für HQ
+        current_price, source, is_realtime = energy_agent.get_current_electricity_price('Düsseldorf (HQ)')
+        
+        # Status-Farbe
+        status_color = "#28a745" if is_realtime else "#ffc107"
+        status_icon = "🟢" if is_realtime else "🟡"
+        
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #FF6600, #FF8800); color: white; 
+                    border-radius: 10px; padding: 1rem; margin: 0.5rem 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 0.8rem; opacity: 0.8;">⚡ Strompreis (Düsseldorf)</div>
+                    <div style="font-size: 1.5rem; font-weight: bold;">€{current_price:.4f}/kWh</div>
+                    <div style="font-size: 0.7rem; opacity: 0.9;">{source}</div>
+                </div>
+                <div style="font-size: 2rem;">{status_icon}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        return True
+        
+    except ImportError:
+        # Fallback wenn Energy Agent nicht verfügbar
+        st.markdown("""
+        <div style="background: #6c757d; color: white; border-radius: 10px; padding: 1rem; margin: 0.5rem 0;">
+            <div style="font-size: 0.8rem; opacity: 0.8;">⚡ Strompreis</div>
+            <div style="font-size: 1.5rem; font-weight: bold;">€0.2600/kWh</div>
+            <div style="font-size: 0.7rem; opacity: 0.9;">Standard (Energy Agent offline)</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        return False
+
+def show_energy_optimization_summary():
+    """Zeigt Energy-Optimierungs-Übersicht"""
+    
+    # Mock-Daten für Demo (könnte aus Datenbank kommen)
+    energy_stats = {
+        'total_assets_with_energy': 342,
+        'monthly_energy_cost': 28500,
+        'optimization_potential': 4200,
+        'assets_with_optimization': 67
+    }
+    
+    st.markdown("### ⚡ Energie-Optimierung Übersicht")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "Assets mit Energieverbrauch", 
+            f"{energy_stats['total_assets_with_energy']:,}",
+            help="Anzahl Assets mit Stromverbrauch"
+        )
+    
+    with col2:
+        st.metric(
+            "Monatliche Energiekosten", 
+            f"€{energy_stats['monthly_energy_cost']:,}",
+            help="Geschätzte monatliche Stromkosten aller Assets"
+        )
+    
+    with col3:
+        savings_pct = (energy_stats['optimization_potential'] / energy_stats['monthly_energy_cost']) * 100
+        st.metric(
+            "Einsparpotential", 
+            f"€{energy_stats['optimization_potential']:,}",
+            f"{savings_pct:.1f}% möglich",
+            help="Geschätztes monatliches Einsparpotential"
+        )
+    
+    with col4:
+        st.metric(
+            "Optimierbare Assets", 
+            f"{energy_stats['assets_with_optimization']:,}",
+            help="Assets mit identifizierten Optimierungsmöglichkeiten"
+        )
+
+
+    """Zeigt die Dashboard-Startseite mit Energy Integration"""
+    
+    # ... bestehender Code für KPI-Cards ...
+    
+    # NEW: Energy Widget nach den KPI-Cards
+    col_energy1, col_energy2 = st.columns([1, 2])
+    
+    with col_energy1:
+        energy_available = show_energy_widget()
+    
+    with col_energy2:
+        if energy_available:
+            st.info("🔋 **Energy Agent aktiv** - Echtzeit-Strompreise verfügbar für optimierte TCO-Berechnungen")
+        else:
+            st.warning("⚠️ **Energy Agent offline** - Standard-Energiepreise werden verwendet")
+    
+    # ... bestehender Code für Asset hinzufügen ...
+    
+    # NEW: Energy Optimization Summary
+    show_energy_optimization_summary()
+    
+    # ... Rest der Dashboard-Funktion bleibt gleich ...
